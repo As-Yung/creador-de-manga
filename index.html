@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creador de Manga</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background: #1c0d02;
+        }
+        #menu, #menu-pagina {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background: #c0c0c0;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        #canvas-container {
+            border: 2px solid black;
+            position: relative;
+            width: 800px;
+            height: 600px;
+            overflow: hidden;
+        }
+        canvas {
+            background: white;
+            display: block;
+        }
+        .panel-container {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            resize: both;
+            overflow: auto;
+            min-width: 50px;
+            min-height: 50px;
+        }
+        .panel {
+            border: 2px solid black;
+            background: white;
+            overflow: hidden;
+            touch-action: none;
+            width: 98%;
+            height: 100%;
+        }
+        .delete-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 5px;
+            display: none;
+        }
+        .resize-handle {
+            width: 15px;
+            height: 15px;
+            background: gray;
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            cursor: nwse-resize;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div id="menu">
+    <button onclick="addPanel()">Agregar Panel</button>
+    <button onclick="toggleEraserMode()" id="eraserModeBtn">Activar Borrador</button>
+    <button onclick="toggleMoveMode()" id="moveModeBtn">Activar Movimiento</button>
+    <button onclick="toggleDrawingMode()" id="drawingModeBtn">Activar Dibujo</button>
+    <button onclick="toggleResizeMode()" id="resizeModeBtn">Activar Eliminar Paneles</button>
+    <input type="color" id="colorPicker" onchange="changeColor(this.value)">
+    <input type="range" id="lineWidth" min="1" max="10" value="2" onchange="changeLineWidth(this.value)">
+</div>
+<div id="menu-pagina">
+    <label for="canvasWidth">Ancho Canvas:</label>
+    <input type="number" id="canvasWidth" value="800">
+    <label for="canvasHeight">Alto Canvas:</label>
+    <input type="number" id="canvasHeight" value="600">
+    <button onclick="resizeMainCanvas()">Aplicar Tamaño Canvas</button>
+    <button onclick="exportToPDF()" style="background-color: #4CAF50; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">
+        Exportar a PDF
+    </button>
+</div>
+<div id="canvas-container">
+    <canvas id="drawingCanvas" width="800" height="600"></canvas>
+</div>
+<script>
+  let moveMode = false;
+  let drawingMode = false;
+  let eraseMode = false;
+  let resizeMode = false;
+  let currentColor = "black";
+  let currentLineWidth = 2;
+
+  function toggleMoveMode() {
+    moveMode = !moveMode;
+    document.getElementById("moveModeBtn").innerText = moveMode ? "Desactivar Movimiento" : "Activar Movimiento";
+  }
+
+  function toggleDrawingMode() {
+    drawingMode = !drawingMode;
+    eraseMode = false;
+    document.getElementById("drawingModeBtn").innerText = drawingMode ? "Desactivar Dibujo" : "Activar Dibujo";
+    document.getElementById("eraserModeBtn").innerText = "Activar Borrador";
+  }
+
+  function toggleEraserMode() {
+    eraseMode = !eraseMode;
+    drawingMode = false;
+    document.getElementById("eraserModeBtn").innerText = eraseMode ? "Desactivar Borrador" : "Activar Borrador";
+    document.getElementById("drawingModeBtn").innerText = "Activar Dibujo";
+  }
+
+  function toggleResizeMode() {
+    resizeMode = !resizeMode;
+    document.getElementById("resizeModeBtn").innerText = resizeMode ? "Desactivar Redimensionamiento" : "Activar Redimensionamiento";
+    document.querySelectorAll(".delete-btn, .resize-handle").forEach(el => {
+      el.style.display = resizeMode ? "block" : "none";
+    });
+    document.querySelectorAll(".panel-container").forEach(el => {
+      el.style.resize = resizeMode ? "both" : "none";
+    });
+  }
+
+  function changeColor(color) {
+    currentColor = color;
+  }
+
+  function changeLineWidth(width) {
+    currentLineWidth = width;
+  }
+
+  function resizeMainCanvas() {
+    const canvas = document.getElementById("drawingCanvas");
+    const container = document.getElementById("canvas-container");
+    const ctx = canvas.getContext("2d");
+
+    const width = parseInt(document.getElementById("canvasWidth").value, 10);
+    const height = parseInt(document.getElementById("canvasHeight").value, 10);
+
+    // Guardar el contenido actual
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCtx.drawImage(canvas, 0, 0);
+
+    // Redimensionar
+    canvas.width = width;
+    canvas.height = height;
+    container.style.width = `${width}px`;
+    container.style.height = `${height}px`;
+
+    // Restaurar el contenido
+    ctx.drawImage(tempCanvas, 0, 0);
+  }
+
+  function addPanel() {
+    const panelContainer = document.createElement("div");
+    panelContainer.className = "panel-container";
+    panelContainer.style.left = "100px";
+    panelContainer.style.top = "100px";
+    panelContainer.style.position = "absolute";
+    panelContainer.style.width = "200px";
+    panelContainer.style.height = "200px";
+
+    const panel = document.createElement("canvas");
+    panel.className = "panel";
+    panel.width = 200;
+    panel.height = 200;
+    panel.style.background = "white";
+
+    const panelCtx = panel.getContext("2d");
+    panelCtx.fillStyle = "white";
+    panelCtx.fillRect(0, 0, panel.width, panel.height);
+
+    let drawing = false;
+
+    // Función para guardar el contenido del canvas
+    function saveCanvasContent() {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = panel.width;
+      tempCanvas.height = panel.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.drawImage(panel, 0, 0);
+      return tempCanvas;
+    }
+
+    // Función para restaurar el contenido del canvas
+    function restoreCanvasContent(savedContent) {
+      panelCtx.clearRect(0, 0, panel.width, panel.height);
+      panelCtx.drawImage(savedContent, 0, 0);
+    }
+
+    panel.addEventListener("pointerdown", function(e) {
+      if (drawingMode || eraseMode) {
+        drawing = true;
+        panelCtx.beginPath();
+        panelCtx.moveTo(e.offsetX, e.offsetY);
+      } else if (moveMode) {
+        startDrag(e, panelContainer);
+      }
+    });
+
+    panel.addEventListener("pointermove", function(e) {
+      if ((drawingMode || eraseMode) && drawing) {
+        panelCtx.strokeStyle = eraseMode ? "white" : currentColor;
+        panelCtx.lineWidth = currentLineWidth;
+        panelCtx.lineTo(e.offsetX, e.offsetY);
+        panelCtx.stroke();
+      }
+    });
+
+    panel.addEventListener("pointerup", function() {
+      if (drawingMode || eraseMode) {
+        drawing = false;
+        panelCtx.closePath();
+      }
+    });
+
+    function startDrag(e, container) {
+      let offsetX = e.clientX - container.offsetLeft;
+      let offsetY = e.clientY - container.offsetTop;
+
+      function movePanel(event) {
+        container.style.left = `${event.clientX - offsetX}px`;
+        container.style.top = `${event.clientY - offsetY}px`;
+      }
+
+      function stopDrag() {
+        document.removeEventListener("pointermove", movePanel);
+        document.removeEventListener("pointerup", stopDrag);
+      }
+
+      document.addEventListener("pointermove", movePanel);
+      document.addEventListener("pointerup", stopDrag);
+    }
+
+    // Función para manejar el redimensionamiento
+    function resizePanel(e, container) {
+      e.preventDefault();
+      const savedContent = saveCanvasContent();
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startWidth = container.offsetWidth;
+      const startHeight = container.offsetHeight;
+
+      function onMouseMove(moveEvent) {
+        const newWidth = startWidth + (moveEvent.clientX - startX);
+        const newHeight = startHeight + (moveEvent.clientY - startY);
+
+        container.style.width = `${newWidth}px`;
+        container.style.height = `${newHeight}px`;
+
+        panel.width = newWidth;
+        panel.height = newHeight;
+
+        restoreCanvasContent(savedContent);
+      }
+
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    }
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "delete-btn";
+    deleteBtn.innerText = "X";
+    deleteBtn.onclick = () => panelContainer.remove();
+    deleteBtn.style.display = resizeMode ? "block" : "none";
+
+    const resizeHandle = document.createElement("div");
+    resizeHandle.className = "resize-handle";
+    resizeHandle.style.display = resizeMode ? "block" : "none";
+    resizeHandle.addEventListener("mousedown", function(e) {
+      e.stopPropagation();
+      resizePanel(e, panelContainer);
+    });
+
+    panelContainer.appendChild(deleteBtn);
+    panelContainer.appendChild(panel);
+    panelContainer.appendChild(resizeHandle);
+    document.getElementById("canvas-container").appendChild(panelContainer);
+  }
+
+  function exportToPDF() {
+    const { jsPDF } = window.jspdf;
+    const container = document.getElementById('canvas-container');
+
+    // Mostrar mensaje de carga
+    const loadingMsg = document.createElement('div');
+    loadingMsg.style.position = 'fixed';
+    loadingMsg.style.top = '50%';
+    loadingMsg.style.left = '50%';
+    loadingMsg.style.transform = 'translate(-50%, -50%)';
+    loadingMsg.style.padding = '20px';
+    loadingMsg.style.background = 'rgba(0,0,0,0.8)';
+    loadingMsg.style.color = 'white';
+    loadingMsg.style.borderRadius = '10px';
+    loadingMsg.style.zIndex = '1000';
+    loadingMsg.textContent = 'Generando PDF...';
+    document.body.appendChild(loadingMsg);
+
+    // Crear una copia temporal del contenedor para la captura
+    const tempContainer = container.cloneNode(true);
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.background = 'white';
+    document.body.appendChild(tempContainer);
+
+    // Configurar las opciones de html2canvas
+    const options = {
+      scale: 2, // Mayor calidad
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    };
+
+    html2canvas(container, options).then(canvas => {
+      try {
+        // Crear el PDF con el tamaño adecuado
+        const imgWidth = 210; // A4 width en mm
+        const pageHeight = 297; // A4 height en mm
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+
+        // Agregar la imagen al PDF
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+        // Guardar el PDF
+        pdf.save('manga-creator.pdf');
+      } catch (error) {
+        console.error('Error al generar el PDF:', error);
+        alert('Hubo un error al generar el PDF. Por favor, intente nuevamente.');
+      } finally {
+        // Limpiar
+        document.body.removeChild(loadingMsg);
+        document.body.removeChild(tempContainer);
+      }
+    }).catch(error => {
+      console.error('Error al capturar el canvas:', error);
+      alert('Hubo un error al capturar el contenido. Por favor, intente nuevamente.');
+      document.body.removeChild(loadingMsg);
+      document.body.removeChild(tempContainer);
+    });
+  }
+</script>
+</body>
+</html>
