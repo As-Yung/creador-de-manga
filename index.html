@@ -258,9 +258,6 @@
     function resizePanel(e, container) {
       e.preventDefault();
       const panel = container.querySelector('.panel');
-      const panelCtx = panel.getContext('2d');
-    
-      // Save the current canvas content
       const savedContent = saveCanvasContent();
     
       const startX = e.clientX;
@@ -276,9 +273,13 @@
         container.style.width = `${newWidth}px`;
         container.style.height = `${newHeight}px`;
     
-        // Resize canvas element without changing its internal drawing context
-        panel.style.width = `${newWidth}px`;
-        panel.style.height = `${newHeight}px`;
+        // Resize canvas without changing its internal drawing context
+        panel.width = savedContent.width;
+        panel.height = savedContent.height;
+        
+        // Restore saved content
+        const panelCtx = panel.getContext('2d');
+        panelCtx.drawImage(savedContent, 0, 0);
       }
     
       function onMouseUp() {
