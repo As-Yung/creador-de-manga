@@ -258,30 +258,46 @@
     function resizePanel(e, container) {
       e.preventDefault();
       const savedContent = saveCanvasContent();
-
+    
       const startX = e.clientX;
       const startY = e.clientY;
       const startWidth = container.offsetWidth;
       const startHeight = container.offsetHeight;
-
+    
       function onMouseMove(moveEvent) {
         const newWidth = startWidth + (moveEvent.clientX - startX);
         const newHeight = startHeight + (moveEvent.clientY - startY);
-
+    
         container.style.width = `${newWidth}px`;
         container.style.height = `${newHeight}px`;
-
+    
+        const panel = container.querySelector('.panel');
+        const panelCtx = panel.getContext('2d');
+    
+        // Create a new canvas with the same content but new dimensions
+        const newCanvas = document.createElement('canvas');
+        newCanvas.width = newWidth;
+        newCanvas.height = newHeight;
+        const newCtx = newCanvas.getContext('2d');
+        
+        // Set white background
+        newCtx.fillStyle = 'white';
+        newCtx.fillRect(0, 0, newWidth, newHeight);
+        
+        // Draw the saved content
+        newCtx.drawImage(savedContent, 0, 0);
+    
+        // Replace the old canvas with the new one
         panel.width = newWidth;
         panel.height = newHeight;
-
-        restoreCanvasContent(savedContent);
+        panelCtx.drawImage(newCanvas, 0, 0);
       }
-
+    
       function onMouseUp() {
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
       }
-
+    
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     }
