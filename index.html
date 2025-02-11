@@ -173,90 +173,142 @@
     ctx.drawImage(tempCanvas, 0, 0);
   }
 
-function addPanel() {
-  const panelContainer = document.createElement("div");
-  panelContainer.className = "panel-container";
-  panelContainer.style.left = "100px";
-  panelContainer.style.top = "100px";
-  panelContainer.style.position = "absolute";
-  panelContainer.style.width = "200px";
-  panelContainer.style.height = "200px";
+  function addPanel() {
+    const panelContainer = document.createElement("div");
+    panelContainer.className = "panel-container";
+    panelContainer.style.left = "100px";
+    panelContainer.style.top = "100px";
+    panelContainer.style.position = "absolute";
+    panelContainer.style.width = "200px";
+    panelContainer.style.height = "200px";
 
-  const panelWrapper = document.createElement("div");
-  panelWrapper.style.width = "100%";
-  panelWrapper.style.height = "100%";
-  panelWrapper.style.overflow = "hidden";
+    const panel = document.createElement("canvas");
+    panel.className = "panel";
+    panel.width = 200;
+    panel.height = 200;
+    panel.style.background = "white";
 
-  const panel = document.createElement("canvas");
-  panel.className = "panel";
-  panel.width = 200;
-  panel.height = 200;
-  panel.style.transform = "scale(1)";
-  panel.style.transformOrigin = "top left";
+    const panelCtx = panel.getContext("2d");
+    panelCtx.fillStyle = "white";
+    panelCtx.fillRect(0, 0, panel.width, panel.height);
 
-  let drawing = false;
+    let drawing = false;
 
-  // Save canvas content function
-  function saveCanvasContent() {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = panel.width;
-    tempCanvas.height = panel.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(panel, 0, 0);
-    return tempCanvas;
-  }
-
-  // Resize panel function
-  function resizePanel(e, container) {
-    e.preventDefault();
-    const savedContent = saveCanvasContent();
-
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startWidth = container.offsetWidth;
-    const startHeight = container.offsetHeight;
-
-    function onMouseMove(moveEvent) {
-      const newWidth = startWidth + (moveEvent.clientX - startX);
-      const newHeight = startHeight + (moveEvent.clientY - startY);
-
-      // Resize container
-      container.style.width = `${newWidth}px`;
-      container.style.height = `${newHeight}px`;
+    // Función para guardar el contenido del canvas
+    function saveCanvasContent() {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = panel.width;
+      tempCanvas.height = panel.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx.drawImage(panel, 0, 0);
+      return tempCanvas;
     }
 
-    function onMouseUp() {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+    // Función para restaurar el contenido del canvas
+    function restoreCanvasContent(savedContent) {
+      panelCtx.clearRect(0, 0, panel.width, panel.height);
+      panelCtx.drawImage(savedContent, 0, 0);
     }
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    panel.addEventListener("pointerdown", function(e) {
+      if (drawingMode || eraseMode) {
+        drawing = true;
+        panelCtx.beginPath();
+        panelCtx.moveTo(e.offsetX, e.offsetY);
+      } else if (moveMode) {
+        startDrag(e, panelContainer);
+      }
+    });
+
+    panel.addEventListener("pointermove", function(e) {
+      if ((drawingMode || eraseMode) && drawing) {
+        panelCtx.strokeStyle = eraseMode ? "white" : currentColor;
+        panelCtx.lineWidth = currentLineWidth;
+        panelCtx.lineTo(e.offsetX, e.offsetY);
+        panelCtx.stroke();
+      }
+    });
+
+    panel.addEventListener("pointerup", function() {
+      if (drawingMode || eraseMode) {
+        drawing = false;
+        panelCtx.closePath();
+      }
+    });
+
+    function startDrag(e, container) {
+      let offsetX = e.clientX - container.offsetLeft;
+      let offsetY = e.clientY - container.offsetTop;
+
+      function movePanel(event) {
+        container.style.left = `${event.clientX - offsetX}px`;
+        container.style.top = `${event.clientY - offsetY}px`;
+      }
+
+      function stopDrag() {
+        document.removeEventListener("pointermove", movePanel);
+        document.removeEventListener("pointerup", stopDrag);
+      }
+
+      document.addEventListener("pointermove", movePanel);
+      document.addEventListener("pointerup", stopDrag);
+    }
+
+    // Función para manejar el redimensionamiento
+    function resizePanel(e, container) {
+      e.preventDefault();
+      const panel = container.querySelector('.panel');
+      const panelCtx = panel.getContext('2d');
+    
+      // Save the current canvas content
+      const savedContent = saveCanvasContent();
+    
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startWidth = container.offsetWidth;
+      const startHeight = container.offsetHeight;
+    
+      function onMouseMove(moveEvent) {
+        const newWidth = startWidth + (moveEvent.clientX - startX);
+        const newHeight = startHeight + (moveEvent.clientY - startY);
+    
+        // Resize container
+        container.style.width = `${newWidth}px`;
+        container.style.height = `${newHeight}px`;
+    
+        // Resize canvas element without changing its internal drawing context
+        panel.style.width = `${newWidth}px`;
+        panel.style.height = `${newHeight}px`;
+      }
+    
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+    
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    }
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "delete-btn";
+    deleteBtn.innerText = "X";
+    deleteBtn.onclick = () => panelContainer.remove();
+    deleteBtn.style.display = resizeMode ? "block" : "none";
+
+    const resizeHandle = document.createElement("div");
+    resizeHandle.className = "resize-handle";
+    resizeHandle.style.display = resizeMode ? "block" : "none";
+    resizeHandle.addEventListener("mousedown", function(e) {
+      e.stopPropagation();
+      resizePanel(e, panelContainer);
+    });
+
+    panelContainer.appendChild(deleteBtn);
+    panelContainer.appendChild(panel);
+    panelContainer.appendChild(resizeHandle);
+    document.getElementById("canvas-container").appendChild(panelContainer);
   }
-
-  // Rest of the existing event listeners and drawing logic...
-  // (Keep the existing pointerdown, pointermove, pointerup event listeners)
-
-  const deleteBtn = document.createElement("button");
-  deleteBtn.className = "delete-btn";
-  deleteBtn.innerText = "X";
-  deleteBtn.onclick = () => panelContainer.remove();
-  deleteBtn.style.display = resizeMode ? "block" : "none";
-
-  const resizeHandle = document.createElement("div");
-  resizeHandle.className = "resize-handle";
-  resizeHandle.style.display = resizeMode ? "block" : "none";
-  resizeHandle.addEventListener("mousedown", function(e) {
-    e.stopPropagation();
-    resizePanel(e, panelContainer);
-  });
-
-  panelWrapper.appendChild(panel);
-  panelContainer.appendChild(deleteBtn);
-  panelContainer.appendChild(panelWrapper);
-  panelContainer.appendChild(resizeHandle);
-  document.getElementById("canvas-container").appendChild(panelContainer);
-}
 
   function exportToPDF() {
     const { jsPDF } = window.jspdf;
